@@ -95,7 +95,7 @@ def build_orchestrator_team(db_tools: dict, period: str = "2026-01") -> Team:
     return Team(
         name="PE Firm Month-End Close Orchestrator",
         members=all_members,
-        model=get_groq_model("llama-3.3-70b-versatile"),
+        model=get_groq_model(),
         mode=TeamMode.coordinate,
         db=get_postgres_db(),
         add_history_to_context=True,
@@ -149,14 +149,32 @@ def build_month_end_workflow(db_tools: dict, period: str = "2026-01") -> Workflo
     consolidation_step = Step(executor=build_consolidation_agent(db_tools))
     reporting_step = Step(executor=build_reporting_agent(db_tools))
 
+    # Anti-hallucination injector for Llama-3 8b
+    def apply_strict_prompt(executor):
+        strict_msg = "CRITICAL: NEVER output raw <function> tags or text-based tool calls. You MUST strictly use the native API JSON tool-calling schema to execute tools."
+        if hasattr(executor, 'instructions'):
+            if isinstance(executor.instructions, list):
+                executor.instructions.append(strict_msg)
+            elif isinstance(executor.instructions, str):
+                executor.instructions += "\n\n" + strict_msg
+        if hasattr(executor, 'members'):
+            for member in getattr(executor, 'members', []):
+                apply_strict_prompt(member)
+
+    all_steps = [
+        *per_company_steps,             # Group 1: all companies sequentially
+        *sequential_steps,              # Group 2: sequential accounting per company
+        ic_step,                        # Group 3: intercompany elimination
+        consolidation_step,             # Group 4a: consolidation
+        reporting_step,                 # Group 4b: reporting & email
+    ]
+
+    # Inject prompt across the hierarchy
+    for step in all_steps:
+        apply_strict_prompt(step.executor)
+
     return Workflow(
         name="PE Firm Month-End Close",
         db=get_postgres_db(),
-        steps=[
-            *per_company_steps,             # Group 1: all companies sequentially
-            *sequential_steps,              # Group 2: sequential accounting per company
-            ic_step,                        # Group 3: intercompany elimination
-            consolidation_step,             # Group 4a: consolidation
-            reporting_step,                 # Group 4b: reporting & email
-        ],
+        steps=all_steps,
     )

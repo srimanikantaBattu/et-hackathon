@@ -33,6 +33,17 @@ def _run_workflow_background(period: str, db: Session):
         orchestrator = build_orchestrator_team(db_tools, period)
         result = orchestrator.run(f"Run the complete month-end close process for period {period}.")
 
+        # Capture and log the final markdown executive report
+        from app.agents.base import log_agent_action
+        final_markdown = getattr(result, "content", str(result)) if result else "Workflow executed."
+        log_agent_action(
+            db, 
+            "orchestrator", 
+            "Final Executive Report Generated", 
+            details=final_markdown, 
+            severity="success"
+        )
+
         logger.info(f"Month-end close workflow completed for period {period}")
         for name in agent_names:
             update_agent_state(db, name, "idle")

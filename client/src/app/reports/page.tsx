@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchConsolidation } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileText, Download, Mail, Loader2, Target } from "lucide-react";
+import { FileText, Download, Mail, Loader2, Target, TrendingUp, BarChart3, Presentation, Server } from "lucide-react";
 import { format } from "date-fns";
+import Link from "next/link";
 
 export default function ReportsPage() {
   const { data: consolidation, isLoading } = useQuery({ 
@@ -13,114 +13,138 @@ export default function ReportsPage() {
   });
 
   return (
-    <div className="flex-1 space-y-6 p-8 overflow-y-auto">
-      <div className="flex items-center justify-between">
+    <div className="flex-1 space-y-8 p-10 overflow-y-auto custom-scrollbar bg-[#18181A] text-white">
+      <div className="flex items-end justify-between mb-8 border-b border-white/5 pb-6">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Financial Reports</h2>
-          <p className="text-muted-foreground mt-1">Consolidated packages and auditor exports.</p>
+          <h2 className="text-[2.5rem] font-semibold tracking-tight leading-none">Financial Reports</h2>
+          <p className="text-[12px] font-bold text-white/40 uppercase tracking-[0.2em] mt-4">Consolidated packages and auditor exports.</p>
         </div>
         <div className="flex gap-3">
-          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors border border-input bg-background hover:bg-muted h-9 px-4 py-2">
+          <button className="inline-flex items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-wider transition-all border border-white/10 bg-[#242529] text-white/70 hover:bg-[#2A2B2D] hover:text-white px-5 py-2.5">
             <Mail className="mr-2 h-4 w-4" /> Email Partners
           </button>
-          <button className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
+          <button className="inline-flex items-center justify-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-[#D4FF3A] text-black hover:bg-[#bceb2b] shadow-[0_0_20px_rgba(212,255,58,0.3)] px-5 py-2.5">
             <Download className="mr-2 h-4 w-4" /> Export PDF
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
-          <Card className="h-full">
-            <CardHeader className="bg-muted/30 border-b pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><FileText size={20} className="text-primary" /> Month-End Close Summary</CardTitle>
-                  <CardDescription className="mt-1">Generated autonomously by Reporting Agent on {format(new Date(), "MMMM d, yyyy")}</CardDescription>
-                </div>
-                <div className="px-3 py-1 bg-primary/10 text-primary uppercase text-xs font-bold rounded">
-                  Internal Draft
-                </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 space-y-8">
+          <div className="bg-[#1C1C1E] rounded-[24px] border border-white/[0.04] overflow-hidden shadow-2xl relative">
+            {/* Top Glow */}
+            <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-[#D4FF3A]/50 to-transparent"></div>
+            
+            <div className="bg-black/20 border-b border-white/5 p-8 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-medium text-white/90 flex items-center gap-3">
+                  <Presentation size={20} className="text-[#D4FF3A]" /> 
+                  Month-End Close Summary
+                </h3>
+                <p className="text-[11px] text-white/40 mt-2 uppercase tracking-widest font-mono">Generated autonomously by Reporting Agent on {format(new Date(), "MMM dd, yyyy")}</p>
               </div>
-            </CardHeader>
-            <CardContent className="p-8 prose prose-slate dark:prose-invert max-w-none">
+              <div className="px-3 py-1 bg-[#D4FF3A]/10 text-[#D4FF3A] uppercase text-[10px] tracking-widest font-bold rounded-sm border border-[#D4FF3A]/20">
+                Internal Draft
+              </div>
+            </div>
+
+            <div className="p-8">
               {isLoading ? (
-                <div className="flex justify-center p-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                <div className="flex justify-center p-16 bg-black/10 rounded-xl"><Loader2 className="h-8 w-8 animate-spin text-[#D4FF3A]" /></div>
               ) : (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pb-6 border-b">
-                    <div>
-                      <div className="text-sm text-muted-foreground uppercase tracking-wider">Revenue</div>
-                      <div className="text-2xl font-bold">${consolidation?.total_revenue?.toLocaleString() || 0}</div>
+                <div className="space-y-8">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pb-8 border-b border-white/5">
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2 flex items-center gap-2"><TrendingUp size={12} className="text-[#3ABFF0]"/> Revenue</div>
+                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.total_revenue || 0).toLocaleString()}</div>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground uppercase tracking-wider">EBITDA</div>
-                      <div className="text-2xl font-bold">${consolidation?.ebitda?.toLocaleString() || 0}</div>
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2 flex items-center gap-2"><BarChart3 size={12} className="text-[#D4FF3A]"/> EBITDA</div>
+                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.ebitda || 0).toLocaleString()}</div>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground uppercase tracking-wider">Gross Profit</div>
-                      <div className="text-2xl font-bold">${consolidation?.gross_profit?.toLocaleString() || 0}</div>
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2">Gross Profit</div>
+                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.gross_profit || 0).toLocaleString()}</div>
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground uppercase tracking-wider">Net Income</div>
-                      <div className="text-2xl font-bold">${consolidation?.net_income?.toLocaleString() || 0}</div>
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                      <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2">Net Income</div>
+                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.net_income || 0).toLocaleString()}</div>
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="text-lg font-semibold flex items-center gap-2 border-b pb-2"><Target size={18}/> Executive Commentary</h3>
-                    <p className="mt-4 text-muted-foreground leading-relaxed">
-                      The portfolio exhibited strong performance for the period 2026-01. Total consolidated gross margin stood at {consolidation?.gross_margin_pct?.toFixed(1) || 0}%, 
-                      with EBITDA margins at {consolidation?.ebitda_margin_pct?.toFixed(1) || 0}%. Intercompany eliminations were fully reconciled by the autonomous agent with $0 in out-of-balance transactions.
-                    </p>
-                    <p className="mt-4 text-muted-foreground leading-relaxed">
-                      All {consolidation?.portfolio_companies || 0} subsidiary entities successfully closed their books. The Variance Analysis agent flagged 14 accounts for manual review where deviations exceeded the 10% threshold, primarily driven by seasonal payroll accruals and SaaS software capitalization changes.
-                    </p>
+                    <h4 className="text-[13px] font-bold uppercase tracking-widest mb-4 flex items-center gap-2 text-white/70">
+                      <Target size={16} className="text-[#FFB03A]"/> Executive Commentary
+                    </h4>
+                    <div className="bg-black/30 p-6 rounded-2xl border border-white/[0.02] text-[13px] text-white/60 leading-loose">
+                      <p>
+                        The portfolio exhibited strong performance for the period 2026-01. Total consolidated gross margin stood at <span className="text-white/90 font-mono font-medium">{consolidation?.gross_margin_pct?.toFixed(1) || 0}%</span>, 
+                        with EBITDA margins effectively scaling at <span className="text-white/90 font-mono font-medium">{consolidation?.ebitda_margin_pct?.toFixed(1) || 0}%</span>. Intercompany eliminations were fully reconciled by the autonomous orchestration agent with $0 in out-of-balance residual transactions.
+                      </p>
+                      <p className="mt-4">
+                        All <span className="text-white/90 font-mono font-medium">{consolidation?.portfolio_companies || 8}</span> subsidiary entities successfully closed their books. The AI Variance Analysis agent flagged multiple accounts for human-in-the-loop review where deviations exceeded the hard-coded 10% tolerance threshold, primarily driven by seasonal payroll accruals and SaaS software capitalization changes.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Available Downloads</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <a href="#" className="flex items-center justify-between p-3 rounded-md border hover:bg-muted transition-colors group">
-                <div className="flex items-center gap-3">
-                  <FileText className="text-blue-500" size={20} />
+        <div className="xl:col-span-1 space-y-6">
+          <div className="bg-[#1C1C1E] rounded-[24px] border border-white/[0.04] p-6 shadow-2xl">
+            <h3 className="text-[11px] font-bold uppercase tracking-widest text-white/50 mb-6 flex items-center gap-2">
+              <Download size={14} /> Available Downloads
+            </h3>
+            
+            <div className="space-y-4">
+              <Link href="#" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FF5577]/10 flex items-center justify-center text-[#FF5577]">
+                    <FileText size={18} />
+                  </div>
                   <div>
-                    <p className="text-sm font-medium leading-none">Complete Financials</p>
-                    <p className="text-xs text-muted-foreground mt-1">PDF &bull; 2.4 MB</p>
+                    <h4 className="text-sm font-semibold text-white/90">Complete Financials</h4>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">PDF &bull; 2.4 MB</p>
                   </div>
                 </div>
-                <Download size={16} className="text-muted-foreground group-hover:text-foreground" />
-              </a>
-              <a href="#" className="flex items-center justify-between p-3 rounded-md border hover:bg-muted transition-colors group">
-                <div className="flex items-center gap-3">
-                  <FileText className="text-green-500" size={20} />
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#FF5577]/20 group-hover:text-[#FF5577] transition-all">
+                  <Download size={14} />
+                </div>
+              </Link>
+              
+              <Link href="#" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#3ABFF0]/10 flex items-center justify-center text-[#3ABFF0]">
+                    <FileText size={18} />
+                  </div>
                   <div>
-                    <p className="text-sm font-medium leading-none">Intercompany Matrix</p>
-                    <p className="text-xs text-muted-foreground mt-1">Excel &bull; 45 KB</p>
+                    <h4 className="text-sm font-semibold text-white/90">Intercompany Matrix</h4>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">Excel &bull; 45 KB</p>
                   </div>
                 </div>
-                <Download size={16} className="text-muted-foreground group-hover:text-foreground" />
-              </a>
-              <a href="#" className="flex items-center justify-between p-3 rounded-md border hover:bg-muted transition-colors group">
-                <div className="flex items-center gap-3">
-                  <FileText className="text-orange-500" size={20} />
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#3ABFF0]/20 group-hover:text-[#3ABFF0] transition-all">
+                  <Download size={14} />
+                </div>
+              </Link>
+              
+              <Link href="/agents" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#FFB03A]/10 flex items-center justify-center text-[#FFB03A]">
+                    <Server size={18} />
+                  </div>
                   <div>
-                    <p className="text-sm font-medium leading-none">Audit Trail Log</p>
-                    <p className="text-xs text-muted-foreground mt-1">CSV &bull; 1.1 MB</p>
+                    <h4 className="text-sm font-semibold text-white/90">Agent Audit Trail</h4>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">CSV &bull; 1.1 MB</p>
                   </div>
                 </div>
-                <Download size={16} className="text-muted-foreground group-hover:text-foreground" />
-              </a>
-            </CardContent>
-          </Card>
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#FFB03A]/20 group-hover:text-[#FFB03A] transition-all">
+                  <Download size={14} />
+                </div>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>

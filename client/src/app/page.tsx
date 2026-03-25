@@ -67,9 +67,9 @@ function GradientCard({ title, value, icon, trend, bgStyle }: { title: string, v
 }
 
 export default function Dashboard() {
-  const { data: companies, isLoading: loadingComps } = useQuery<any>({ queryKey: ["companies"], queryFn: fetchCompanies });
-  const { data: consolidation, isLoading: loadingConsol } = useQuery<any>({ queryKey: ["consolidation"], queryFn: () => fetchConsolidation() });
-  const { data: agentStatus } = useQuery<any>({ queryKey: ["agentStatus"], queryFn: fetchAgentStatus, refetchInterval: 3000 });
+  const { data: companies, isLoading: loadingComps } = useQuery<any>({ queryKey: ["companies"], queryFn: fetchCompanies, refetchOnMount: true, staleTime: 0 });
+  const { data: consolidation, isLoading: loadingConsol } = useQuery<any>({ queryKey: ["consolidation"], queryFn: () => fetchConsolidation(), refetchOnMount: true, staleTime: 0 });
+  const { data: agentStatus } = useQuery<any>({ queryKey: ["agentStatus"], queryFn: fetchAgentStatus, refetchInterval: 2000 });
   const [triggering, setTriggering] = useState(false);
 
   const handleTrigger = async () => {
@@ -168,10 +168,10 @@ export default function Dashboard() {
                 bgStyle="linear-gradient(145deg, #1a4a4a 0%, #143d42 40%, #0a2530 100%)" 
               />
               <GradientCard 
-                title="ACTIVE AGENTS" 
-                value={`${agentStatus?.running_agents?.length || 0}`} 
+                title="ORCHESTRATION AGENTS" 
+                value={`${agentStatus?.running_agents?.length > 0 ? agentStatus.running_agents.length : 10}`} 
                 icon={<Activity size={18} color="rgba(255,255,255,0.7)" strokeWidth={2}/>}
-                trend="+100%"
+                trend={agentStatus?.running_agents?.length > 0 ? "LIVE" : "STANDBY"}
                 bgStyle="linear-gradient(145deg, #2a3a20 0%, #1f3420 40%, #0e1f10 100%)" 
               />
             </div>

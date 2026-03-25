@@ -12,6 +12,10 @@ export default function ReportsPage() {
     queryFn: () => fetchConsolidation("2026-01") 
   });
 
+  const formatCurrency = (val: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+  };
+
   return (
     <div className="flex-1 space-y-8 p-10 overflow-y-auto custom-scrollbar bg-[#18181A] text-white">
       <div className="flex items-end justify-between mb-8 border-b border-white/5 pb-6">
@@ -53,22 +57,30 @@ export default function ReportsPage() {
                 <div className="flex justify-center p-16 bg-black/10 rounded-xl"><Loader2 className="h-8 w-8 animate-spin text-[#D4FF3A]" /></div>
               ) : (
                 <div className="space-y-8">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pb-8 border-b border-white/5">
-                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                  <div className="grid grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4 gap-4 lg:gap-6 pb-8 border-b border-white/5">
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03] overflow-hidden">
                       <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2 flex items-center gap-2"><TrendingUp size={12} className="text-[#3ABFF0]"/> Revenue</div>
-                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.total_revenue || 0).toLocaleString()}</div>
+                      <div className="text-xl lg:text-2xl font-semibold tracking-tight text-white/90 truncate" title={formatCurrency(consolidation?.total_revenue || 0)}>
+                        {formatCurrency(consolidation?.total_revenue || 0)}
+                      </div>
                     </div>
-                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03] overflow-hidden">
                       <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2 flex items-center gap-2"><BarChart3 size={12} className="text-[#D4FF3A]"/> EBITDA</div>
-                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.ebitda || 0).toLocaleString()}</div>
+                      <div className="text-xl lg:text-2xl font-semibold tracking-tight text-white/90 truncate" title={formatCurrency(consolidation?.ebitda || 0)}>
+                        {formatCurrency(consolidation?.ebitda || 0)}
+                      </div>
                     </div>
-                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03] overflow-hidden">
                       <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2">Gross Profit</div>
-                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.gross_profit || 0).toLocaleString()}</div>
+                      <div className="text-xl lg:text-2xl font-semibold tracking-tight text-white/90 truncate" title={formatCurrency(consolidation?.gross_profit || 0)}>
+                        {formatCurrency(consolidation?.gross_profit || 0)}
+                      </div>
                     </div>
-                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03]">
+                    <div className="bg-[#242529] p-5 rounded-2xl border border-white/[0.03] overflow-hidden">
                       <div className="text-[10px] text-white/40 uppercase tracking-widest font-bold mb-2">Net Income</div>
-                      <div className="text-2xl font-semibold tracking-tight text-white/90">${(consolidation?.net_income || 0).toLocaleString()}</div>
+                      <div className="text-xl lg:text-2xl font-semibold tracking-tight text-white/90 truncate" title={formatCurrency(consolidation?.net_income || 0)}>
+                        {formatCurrency(consolidation?.net_income || 0)}
+                      </div>
                     </div>
                   </div>
 

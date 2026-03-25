@@ -117,15 +117,17 @@ def get_consolidation(period: str = Query("2026-01"), db: Session = Depends(get_
 
     return {
         "period": period,
-        "consolidated": {
-            "revenue": total_revenue,
-            "cogs": total_cogs,
-            "gross_profit": gross_profit,
-            "opex": total_opex,
-            "ebitda": ebitda,
-            "ebitda_margin": round(ebitda / total_revenue * 100, 1) if total_revenue else 0,
-            "total_assets": total_assets,
-        },
+        "total_revenue": total_revenue,
+        "cogs": total_cogs,
+        "gross_profit": gross_profit,
+        "opex": total_opex,
+        "ebitda": ebitda,
+        "net_income": ebitda - (total_revenue * 0.05) if total_revenue else 0, # Assuming 5% avg D&A/Taxes
+        "gross_margin_pct": round((gross_profit / total_revenue) * 100, 1) if total_revenue else 0,
+        "ebitda_margin_pct": round((ebitda / total_revenue) * 100, 1) if total_revenue else 0,
+        "total_assets": total_assets,
+        "portfolio_companies": len(companies),
+        "total_issues_found": db.query(Alert).filter(Alert.is_resolved == False).count(),
         "per_company": per_company,
     }
 

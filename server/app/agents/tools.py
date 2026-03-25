@@ -4,6 +4,7 @@ These are Python functions decorated/structured to be passed as tools= to Agno A
 Agno automatically converts Python functions into tool definitions for the LLM.
 """
 import logging
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -125,10 +126,25 @@ def save_alert(
 def log_action(agent_name: str, action: str, company_id: Optional[str], details: Optional[str], severity: str, db: Session) -> dict:
     """Log an agent action to the database and emit socket event."""
     from app.models.agent_log import AgentLog
+    from app.sockets.events import emit_agent_event
     log = AgentLog(agent_name=agent_name, company_id=company_id, action=action, details=details, severity=severity, status="completed")
     db.add(log)
     db.commit()
     db.refresh(log)
+
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            loop.create_task(emit_agent_event(log))
+        else:
+            asyncio.run(emit_agent_event(log))
+    except Exception as e:
+        logger.warning(f"Socket emit failed for log_action: {e}")
+
     return {"log_id": log.id, "agent": agent_name, "action": action}
 
 

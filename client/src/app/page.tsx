@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchCompanies, fetchConsolidation, fetchAgentStatus, triggerWorkflow } from "@/lib/api";
-import { Play, Loader2, ChevronDown, Bell, MoreVertical, Plus, RefreshCw, Hand, Users, Target, PieChart, Flame, Flag, Activity } from "lucide-react";
+import { fetchCompanies, fetchConsolidation, fetchAgentStatus, fetchWorkflowRuns, fetchWorkflowStatus, triggerWorkflow } from "@/lib/api";
+import { Play, Loader2, ChevronDown, Bell, MoreVertical, Plus, Hand, Users, Target, PieChart, Flame, Flag, Activity, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { AgentActivityFeed } from "@/components/agent-activity-feed";
@@ -70,12 +70,19 @@ export default function Dashboard() {
   const { data: companies, isLoading: loadingComps } = useQuery<any>({ queryKey: ["companies"], queryFn: fetchCompanies, refetchOnMount: true, staleTime: 0 });
   const { data: consolidation, isLoading: loadingConsol } = useQuery<any>({ queryKey: ["consolidation"], queryFn: () => fetchConsolidation(), refetchOnMount: true, staleTime: 0 });
   const { data: agentStatus } = useQuery<any>({ queryKey: ["agentStatus"], queryFn: fetchAgentStatus, refetchInterval: 2000 });
+  const { data: workflowStatus } = useQuery<any>({ queryKey: ["workflowStatus"], queryFn: fetchWorkflowStatus, refetchInterval: 2000 });
+  const { data: workflowRuns } = useQuery<any>({ queryKey: ["workflowRuns"], queryFn: () => fetchWorkflowRuns(5), refetchInterval: 5000 });
   const [triggering, setTriggering] = useState(false);
+
+  const latestRun = workflowStatus?.latest_run;
+  const workflowStateLabel = latestRun?.status ? String(latestRun.status).toUpperCase() : "IDLE";
+  const workflowGroupLabel = latestRun?.current_group ? String(latestRun.current_group).replace(/_/g, " ") : "standby";
+  const workflowProgress = Math.round(Number(latestRun?.progress_pct || 0));
 
   const handleTrigger = async () => {
     setTriggering(true);
     try {
-      await triggerWorkflow();
+      await triggerWorkflow("2026-01");
     } finally {
       setTimeout(() => setTriggering(false), 2000);
     }
@@ -88,7 +95,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-[2.5rem] font-semibold tracking-tight text-white leading-none">Stats</h1>
+            <h1 className="text-[2.5rem] font-semibold tracking-tight text-white leading-none">Statistics</h1>
             <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mt-3">Monthly Updates</p>
           </div>
           <div className="flex items-center">
@@ -112,12 +119,13 @@ export default function Dashboard() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex bg-[#1E1F21] rounded-2xl p-1 border border-white/5">
-                    <button 
-                      onClick={handleTrigger} disabled={triggering}
+                    <button
+                      onClick={handleTrigger}
+                      disabled={triggering}
                       className="bg-[#2A2B2D] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-[#333436] transition-colors text-white"
                     >
                       {triggering ? <RefreshCw className="w-3.5 h-3.5 animate-spin"/> : <Play className="w-3.5 h-3.5 text-[#D4FF3A]"/>}
-                      {triggering ? "Running..." : "Trigger AI Workflow"}
+                      {triggering ? "Running..." : `Trigger AI Workflow • ${workflowStateLabel}`}
                     </button>
                   </div>
                 </div>
@@ -171,7 +179,7 @@ export default function Dashboard() {
                 title="ORCHESTRATION AGENTS" 
                 value={`${agentStatus?.running_agents?.length > 0 ? agentStatus.running_agents.length : 10}`} 
                 icon={<Activity size={18} color="rgba(255,255,255,0.7)" strokeWidth={2}/>}
-                trend={agentStatus?.running_agents?.length > 0 ? "LIVE" : "STANDBY"}
+                trend={latestRun?.status === "running" ? `LIVE • ${workflowGroupLabel.toUpperCase()}` : "STANDBY"}
                 bgStyle="linear-gradient(145deg, #2a3a20 0%, #1f3420 40%, #0e1f10 100%)" 
               />
             </div>
@@ -197,7 +205,7 @@ export default function Dashboard() {
                   <div className="text-white/40"><Target size={20}/></div>
                   <span className="text-[13px] font-medium text-white/70">Project Progress</span>
                 </div>
-                <span className="text-[10px] font-bold text-black bg-[#D4FF3A] px-2.5 py-1 rounded shadow-sm">On Track</span>
+                <span className="text-[10px] font-bold text-black bg-[#D4FF3A] px-2.5 py-1 rounded shadow-sm">{workflowProgress}%</span>
               </div>
             </div>
 
@@ -227,6 +235,28 @@ export default function Dashboard() {
           {/* Agent Activity wrapper to mimic dark timeline look */}
           <div className="agent-timeline-wrapper relative">
             <AgentActivityFeed />
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-white/5">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/40">Recent Workflow Runs</h4>
+            </div>
+            <div className="space-y-2">
+              {workflowRuns?.length ? workflowRuns.map((run: any) => (
+                <div key={run.id} className="flex items-center justify-between rounded-xl bg-[#242529] border border-white/5 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-white/80 font-mono">RUN #{run.id} • {run.period}</p>
+                    <p className="text-[9px] text-white/40 uppercase tracking-wider">{String(run.current_group || "queued").replace(/_/g, " ")}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[9px] text-white/70 uppercase font-bold">{String(run.status || "pending")}</p>
+                    <p className="text-[9px] text-[#D4FF3A] font-mono">{Math.round(Number(run.progress_pct || 0))}%</p>
+                  </div>
+                </div>
+              )) : (
+                <p className="text-[10px] text-white/30 uppercase tracking-wider">No workflow runs yet.</p>
+              )}
+            </div>
           </div>
         </div>
         

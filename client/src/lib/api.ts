@@ -29,6 +29,25 @@ export async function fetchAgentStatus() {
   return res.json();
 }
 
+export async function fetchWorkflowStatus() {
+  const res = await fetch(`${API_BASE_URL}/workflow/status`);
+  if (!res.ok) throw new Error("Failed to fetch workflow status");
+  return res.json();
+}
+
+export async function fetchWorkflowRuns(limit = 10) {
+  const res = await fetch(`${API_BASE_URL}/workflow/runs?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch workflow runs");
+  return res.json();
+}
+
+export async function fetchCompanyWorkflowHandoffs(companyId: string, runId?: number) {
+  const runIdQuery = runId ? `?run_id=${runId}` : "";
+  const res = await fetch(`${API_BASE_URL}/workflow/handoffs/${companyId}${runIdQuery}`);
+  if (!res.ok) throw new Error("Failed to fetch workflow handoffs");
+  return res.json();
+}
+
 export async function fetchAgentLogs(companyId?: string, limit = 100) {
   const url = companyId 
     ? `${API_BASE_URL}/agents/logs?company_id=${companyId}&limit=${limit}`

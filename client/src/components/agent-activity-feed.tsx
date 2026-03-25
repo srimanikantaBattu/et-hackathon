@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getSocket } from "@/lib/api";
+import { fetchAgentLogs, getSocket } from "@/lib/api";
 import { format } from "date-fns";
 import { Loader2 } from "lucide-react";
 
@@ -21,8 +21,7 @@ export function AgentActivityFeed() {
 
   useEffect(() => {
     // 1. Fetch initial historical logs so it's not empty on refresh
-    fetch("http://127.0.0.1:8000/api/agents/logs?limit=50")
-      .then((res) => res.json())
+    fetchAgentLogs(undefined, 50)
       .then((data) => {
         if (Array.isArray(data)) setEvents(data);
         setLoading(false);
@@ -69,7 +68,7 @@ export function AgentActivityFeed() {
         ) : (
           <ul className="space-y-4">
             {events.map((evt, i) => (
-              <li key={i} className="relative pl-6 pb-2 group">
+              <li key={evt.id} className="relative pl-6 pb-2 group">
                 {/* Timeline vertical line & dot */}
                 <div className="absolute left-0 top-1.5 bottom-[-16px] w-[1px] bg-white/10 group-last:bg-transparent"></div>
                 <div className={`absolute left-[-3.5px] top-1.5 w-2 h-2 rounded-full border border-[#1C1C1E] shadow-sm ${evt.severity === 'warning' ? 'bg-[#FFB03A]' : evt.severity === 'error' ? 'bg-[#FF5577]' : 'bg-[#3ABFF0]'}`}></div>
@@ -80,7 +79,9 @@ export function AgentActivityFeed() {
                     <span className="font-bold text-[11px] uppercase tracking-wider text-white/80">
                       {evt.agent_name.replace(/_/g, " ")}
                     </span>
-                    <span className="text-[10px] font-mono text-white/30">{format(new Date(evt.created_at), "HH:mm:ss")}</span>
+                    <span className="text-[10px] font-mono text-white/30">
+                      {evt.created_at ? format(new Date(evt.created_at), "HH:mm:ss") : "--:--:--"}
+                    </span>
                   </div>
                   
                   

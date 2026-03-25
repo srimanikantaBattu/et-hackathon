@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchCompanyFinancials } from "@/lib/api";
+import { fetchCompanyFinancials, fetchCompanyWorkflowHandoffs, fetchWorkflowStatus } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,18 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
   const { data, isLoading, error } = useQuery({
     queryKey: ["company", companyId, "financials"],
     queryFn: () => fetchCompanyFinancials(companyId, "2026-01")
+  });
+  const { data: workflowStatus } = useQuery({
+    queryKey: ["workflowStatus"],
+    queryFn: fetchWorkflowStatus,
+    refetchInterval: 2000,
+  });
+  const latestRun = workflowStatus?.latest_run;
+  const { data: handoffs } = useQuery({
+    queryKey: ["workflowHandoffs", companyId, latestRun?.id],
+    queryFn: () => fetchCompanyWorkflowHandoffs(companyId, latestRun?.id),
+    enabled: Boolean(companyId),
+    refetchInterval: 4000,
   });
 
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
@@ -35,6 +47,16 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-md ${company.status === 'completed' ? 'bg-[#D4FF3A]/10 text-[#D4FF3A]' : company.status === 'in_progress' ? 'bg-[#FFB03A]/10 text-[#FFB03A]' : 'bg-white/5 text-white/50'}`}>
               {(company.status || 'pending').replace('_', ' ')}
             </span>
+            {latestRun?.status && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-md bg-[#3ABFF0]/10 text-[#3ABFF0]">
+                Workflow {String(latestRun.status).replace(/_/g, ' ')}
+              </span>
+            )}
+            {latestRun?.current_group && (
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-md bg-white/5 text-white/50">
+                {String(latestRun.current_group).replace(/_/g, ' ')} • {Math.round(Number(latestRun.progress_pct || 0))}%
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -123,6 +145,56 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
         </div>
 
         <div className="md:col-span-1 space-y-6">
+          <div className="bg-[#1C1C1E] rounded-[24px] border border-[#3ABFF0]/20 shadow-xl overflow-hidden relative">
+            <div className="p-6 border-b border-white/5">
+              <h3 className="text-[#3ABFF0] text-sm font-semibold tracking-wider uppercase">
+                Agent Handoffs
+              </h3>
+              <p className="text-[10px] text-white/40 mt-1">Latest run output snippets for this company</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-[10px] uppercase text-white/40 tracking-wider mb-2">Group 1</p>
+                {handoffs?.handoffs?.group1?.length ? (
+                  <ul className="space-y-2">
+                    {handoffs.handoffs.group1.slice(0, 2).map((item: any, index: number) => (
+                      <li key={index} className="text-[11px] text-white/60 bg-black/20 border border-white/5 rounded-lg p-3 font-mono whitespace-pre-wrap">
+                        <div className="mb-2">
+                          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#3ABFF0]/10 text-[#3ABFF0] font-bold">
+                            {String(item.agent_name || "agent").replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        {item.snippet}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider">No group 1 handoff yet.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-[10px] uppercase text-white/40 tracking-wider mb-2">Group 2</p>
+                {handoffs?.handoffs?.group2?.length ? (
+                  <ul className="space-y-2">
+                    {handoffs.handoffs.group2.slice(0, 2).map((item: any, index: number) => (
+                      <li key={index} className="text-[11px] text-white/60 bg-black/20 border border-white/5 rounded-lg p-3 font-mono whitespace-pre-wrap">
+                        <div className="mb-2">
+                          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-sm bg-[#3ABFF0]/10 text-[#3ABFF0] font-bold">
+                            {String(item.agent_name || "agent").replace(/_/g, " ")}
+                          </span>
+                        </div>
+                        {item.snippet}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider">No group 2 handoff yet.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="bg-[#1C1C1E] rounded-[24px] border border-[#FF5577]/20 shadow-xl overflow-hidden relative">
             {/* Warning Top Glow */}
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#FF5577]/0 via-[#FF5577] to-[#FF5577]/0 opacity-50"></div>

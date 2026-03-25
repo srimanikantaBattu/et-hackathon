@@ -1,6 +1,7 @@
 # Shared utilities for all agents
 import json
 import logging
+import asyncio
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -40,6 +41,20 @@ def log_agent_action(
             emit_socket(log)
         except Exception as e:
             logger.warning(f"Socket emit failed: {e}")
+    else:
+        try:
+            from app.sockets.events import emit_agent_event
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                loop.create_task(emit_agent_event(log))
+            else:
+                asyncio.run(emit_agent_event(log))
+        except Exception as e:
+            logger.warning(f"Default socket emit failed: {e}")
 
     logger.info(f"[{agent_name}] {action} | {company_id or 'global'} | {severity}")
     return log

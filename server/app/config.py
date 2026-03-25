@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # Groq LLM
     GROQ_API_KEY: str = ""
     GROQ_MODEL: str = "llama-3.3-70b-versatile"
+
+    # Workflow throttling
+    WORKFLOW_LLM_CONCURRENCY: int = 1
+    WORKFLOW_COMPANY_CONCURRENCY: int = 2
+    WORKFLOW_GROUP_AGENT_CONCURRENCY: int = 2
     
     # Resend Email
     RESEND_API_KEY: str = ""

@@ -120,13 +120,27 @@ def send_daily_executive_email(period: str):
     from app.agents.tools import get_consolidation_summary
     db = SessionLocal()
     summary = get_consolidation_summary(period, db)
+
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    total_revenue = _to_float(summary.get("total_revenue"))
+    ebitda = _to_float(summary.get("ebitda"))
+    ebitda_margin_pct = _to_float(summary.get("ebitda_margin_pct"))
+    gross_profit = _to_float(summary.get("gross_profit"))
+    gross_margin_pct = _to_float(summary.get("gross_margin_pct"))
+    portfolio_companies = summary.get("portfolio_companies", 0)
+
     summary_text = f"""Daily Close Update - {period}
 
-Portfolio Revenue: ${summary['total_revenue']:,.0f}
-EBITDA: ${summary['ebitda']:,.0f} ({summary['ebitda_margin_pct']}% margin)
-Gross Profit: ${summary['gross_profit']:,.0f} ({summary['gross_margin_pct']}% margin)
+Portfolio Revenue: ${total_revenue:,.0f}
+EBITDA: ${ebitda:,.0f} ({ebitda_margin_pct}% margin)
+Gross Profit: ${gross_profit:,.0f} ({gross_margin_pct}% margin)
 
-Companies in portfolio: {summary['portfolio_companies']}
+Companies in portfolio: {portfolio_companies}
 Close Status: Automated agents running
 """
     send_email_now("pe_partners", period, summary_text)

@@ -4,6 +4,12 @@ from app.agents.base import get_groq_model
 def build_accrual_verification_agent(db_tools: dict) -> Agent:
     from app.agents.tools import get_trial_balance, get_accrual_schedule, save_alert, log_action
 
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
     def verify_accruals(company_id: str, period: str) -> str:
         """Check whether expected accruals are booked in the trial balance."""
         import json
@@ -11,8 +17,12 @@ def build_accrual_verification_agent(db_tools: dict) -> Agent:
         schedule = get_accrual_schedule(company_id, db_tools["db"])
         if "error" in tb:
             return json.dumps(tb)
-        accrued_expenses_balance = sum(r["credit"] for r in tb.get("rows", []) if "Accrued Expenses" in r.get("account_name", ""))
-        expected_monthly = schedule.get("monthly_total", 0)
+        accrued_expenses_balance = sum(
+            _to_float(r.get("credit"))
+            for r in tb.get("rows", [])
+            if "Accrued Expenses" in r.get("account_name", "")
+        )
+        expected_monthly = _to_float(schedule.get("monthly_total", 0))
         is_december = period.endswith("-12")
         has_bonus = any("Bonus" in r.get("account_name", "") for r in tb.get("rows", []))
         log_action("accrual_verification", f"Checking accruals: expected ${expected_monthly:,.0f}, booked ${accrued_expenses_balance:,.0f}", company_id, None, "info", db_tools["db"])

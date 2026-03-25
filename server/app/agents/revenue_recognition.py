@@ -4,6 +4,12 @@ from app.agents.base import get_groq_model
 def build_revenue_recognition_agent(db_tools: dict) -> Agent:
     from app.agents.tools import get_trial_balance, save_alert, log_action
 
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
     def analyze_revenue(company_id: str, period: str, industry: str) -> str:
         """Analyze revenue recognition compliance for a company."""
         import json
@@ -11,8 +17,8 @@ def build_revenue_recognition_agent(db_tools: dict) -> Agent:
         if "error" in tb:
             return json.dumps(tb)
         rows = tb.get("rows", [])
-        revenue = sum(abs(r["balance"]) for r in rows if r["account_type"] == "Revenue")
-        deferred = sum(abs(r["balance"]) for r in rows if "Deferred Revenue" in r.get("account_name", ""))
+        revenue = sum(abs(_to_float(r.get("balance"))) for r in rows if r.get("account_type") == "Revenue")
+        deferred = sum(abs(_to_float(r.get("balance"))) for r in rows if "Deferred Revenue" in r.get("account_name", ""))
         deferred_pct = round(deferred / revenue * 100, 1) if revenue else 0
         log_action("revenue_recognition", f"ASC 606 check: Revenue ${revenue:,.0f}, Deferred ${deferred:,.0f} ({deferred_pct}%)", company_id, None, "info", db_tools["db"])
         return json.dumps({

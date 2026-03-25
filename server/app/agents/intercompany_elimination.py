@@ -4,11 +4,19 @@ from app.agents.base import get_groq_model
 def build_intercompany_elimination_agent(db_tools: dict) -> Agent:
     from app.agents.tools import get_intercompany_transactions, save_alert, log_action
 
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
     def fetch_ic_transactions(period: str) -> str:
         """Get all intercompany transactions for the period with elimination status."""
         import json
         result = get_intercompany_transactions(period, db_tools["db"])
-        log_action("intercompany_elimination", f"IC transactions: {result['total_transactions']} total, ${result['amount_eliminated']:,.0f} eliminated", None, None, "info", db_tools["db"])
+        total_transactions = result.get("total_transactions", 0)
+        amount_eliminated = _to_float(result.get("amount_eliminated"))
+        log_action("intercompany_elimination", f"IC transactions: {total_transactions} total, ${amount_eliminated:,.0f} eliminated", None, None, "info", db_tools["db"])
         return json.dumps(result)
 
     def eliminate_ic_pair(selling_entity: str, buying_entity: str, period: str, amount: float) -> str:
@@ -27,7 +35,8 @@ def build_intercompany_elimination_agent(db_tools: dict) -> Agent:
         for t in txns:
             t.is_eliminated = True
         db_tools["db"].commit()
-        log_action("intercompany_elimination", f"Eliminated {count} IC entries: {selling_entity} → {buying_entity}", None, f"Amount: ${amount:,.0f}", "success", db_tools["db"])
+        amount_display = _to_float(amount)
+        log_action("intercompany_elimination", f"Eliminated {count} IC entries: {selling_entity} → {buying_entity}", None, f"Amount: ${amount_display:,.0f}", "success", db_tools["db"])
         import json
         return json.dumps({"eliminated": count, "seller": selling_entity, "buyer": buying_entity, "period": period})
 

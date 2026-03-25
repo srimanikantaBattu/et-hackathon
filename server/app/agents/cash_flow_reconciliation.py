@@ -5,6 +5,12 @@ def build_cash_flow_reconciliation_agent(db_tools: dict) -> Agent:
     from app.agents.tools import get_trial_balance, save_alert, log_action
     import pandas as pd
 
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
     def reconcile_cash(company_id: str, period: str) -> str:
         """Reconcile cash account balance against bank statement data."""
         import json
@@ -14,7 +20,7 @@ def build_cash_flow_reconciliation_agent(db_tools: dict) -> Agent:
         if "error" in tb:
             return json.dumps(tb)
         cash_rows = [r for r in tb.get("rows", []) if "Cash" in r.get("account_name", "") and r["account_type"] == "Asset" and "Accumulated" not in r.get("account_name", "")]
-        gl_cash = sum(r["balance"] for r in cash_rows)
+        gl_cash = sum(_to_float(r.get("balance")) for r in cash_rows)
 
         # Load bank statement
         period_formatted = period.replace("-", "_")
@@ -26,7 +32,8 @@ def build_cash_flow_reconciliation_agent(db_tools: dict) -> Agent:
             if not bank_df_numeric.empty:
                 bank_ending = float(pd.to_numeric(bank_df_numeric["balance"]).iloc[-1])
         reconciling_diff = round(gl_cash - bank_ending, 2) if bank_ending is not None else None
-        log_action("cash_flow_reconciliation", f"Cash GL: ${gl_cash:,.0f} | Bank: ${bank_ending:,.0f if bank_ending else 0}", company_id, None, "info", db_tools["db"])
+        bank_display = f"${bank_ending:,.0f}" if bank_ending is not None else "N/A"
+        log_action("cash_flow_reconciliation", f"Cash GL: ${gl_cash:,.0f} | Bank: {bank_display}", company_id, None, "info", db_tools["db"])
         return json.dumps({
             "company_id": company_id,
             "period": period,
@@ -55,6 +62,7 @@ def build_cash_flow_reconciliation_agent(db_tools: dict) -> Agent:
             "Analyze unusual cash movements (large single payments, unidentified credits).",
             "Calculate operating/investing/financing cash flows using indirect method.",
             "List outstanding checks and deposits-in-transit to explain reconciling items.",
+            "NEVER output raw <function> tags in your text response. ALWAYS use native JSON tool calling.",
         ],
         markdown=True,
     )

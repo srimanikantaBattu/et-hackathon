@@ -34,12 +34,20 @@ AgentBuilder = Callable[[dict], object]
 class MonthEndWorkflowExecutor:
     _llm_semaphore = threading.BoundedSemaphore(value=max(1, int(settings.WORKFLOW_LLM_CONCURRENCY)))
 
-    def __init__(self, workflow_run_id: int, period: str):
+    def __init__(
+        self,
+        workflow_run_id: int,
+        period: str,
+        company_ids: Optional[list[str]] = None,
+        company_limit: Optional[int] = None,
+    ):
         self.workflow_run_id = workflow_run_id
         self.period = period
         self.shared_state = RedisWorkflowState()
         self.event_bus = WorkflowEventBus(max_retries=3, base_backoff_seconds=1.0)
         self.company_ids: list[str] = []
+        self.requested_company_ids = [company_id.strip() for company_id in (company_ids or []) if company_id and company_id.strip()]
+        self.company_limit = company_limit
 
         self.event_bus.on("group1_completed", self._handle_group1_completed)
         self.event_bus.on("group2_completed", self._handle_group2_completed)
@@ -51,6 +59,7 @@ class MonthEndWorkflowExecutor:
         self.shared_state.set_workflow_meta(self.workflow_run_id, {
             "period": self.period,
             "company_ids": self.company_ids,
+            "company_count": len(self.company_ids),
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
 
@@ -154,12 +163,20 @@ class MonthEndWorkflowExecutor:
     def _handle_group2_completed(self) -> None:
         self._update_run(status="running", current_group="group3", progress_pct=70)
 
-        self._run_agent_with_retry_safe(
+        intercompany_output = self._run_agent_with_retry_safe(
             "intercompany_elimination",
             build_intercompany_elimination_agent,
             None,
-            f"Run intercompany elimination across all portfolio companies for period {self.period}."
+            (
+                f"Run intercompany elimination ONLY for these companies in period {self.period}: "
+                f"{', '.join(self.company_ids)}. Ignore all other companies."
+            )
         )
+
+        self.shared_state.set_workflow_meta(self.workflow_run_id, {
+            "group3": "completed",
+            "intercompany_output": intercompany_output,
+        })
 
         self.event_bus.emit("group3_completed")
 
@@ -170,13 +187,19 @@ class MonthEndWorkflowExecutor:
             "consolidation",
             build_consolidation_agent,
             None,
-            f"Run portfolio consolidation for period {self.period}."
+            (
+                f"Run portfolio consolidation ONLY for these companies in period {self.period}: "
+                f"{', '.join(self.company_ids)}. Ignore all other companies."
+            )
         )
         reporting_output = self._run_agent_with_retry_safe(
             "reporting_communication",
             build_reporting_agent,
             None,
-            f"Generate executive reporting and send stakeholder communications for period {self.period}."
+            (
+                f"Generate executive reporting and stakeholder communications ONLY for these companies "
+                f"in period {self.period}: {', '.join(self.company_ids)}."
+            )
         )
 
         self.shared_state.set_workflow_meta(self.workflow_run_id, {
@@ -276,8 +299,40 @@ class MonthEndWorkflowExecutor:
     def _get_company_ids(self) -> list[str]:
         db = SessionLocal()
         try:
-            companies = db.query(Company).all()
-            return [c.id for c in companies]
+            normalized_requested_ids: list[str] = []
+            if self.requested_company_ids:
+                normalized_requested_ids = self.requested_company_ids
+            else:
+                configured_ids = [
+                    company_id.strip()
+                    for company_id in str(settings.WORKFLOW_TARGET_COMPANY_IDS or "").split(",")
+                    if company_id and company_id.strip()
+                ]
+                if configured_ids:
+                    normalized_requested_ids = configured_ids
+
+            if normalized_requested_ids:
+                available = {
+                    row[0]
+                    for row in db.query(Company.id)
+                    .filter(Company.id.in_(normalized_requested_ids))
+                    .all()
+                }
+                selected = [company_id for company_id in normalized_requested_ids if company_id in available]
+            else:
+                selected = [company.id for company in db.query(Company).order_by(Company.id.asc()).all()]
+
+                effective_limit = self.company_limit
+                if effective_limit is None:
+                    effective_limit = int(settings.WORKFLOW_TARGET_COMPANY_LIMIT or 0)
+
+                if effective_limit and effective_limit > 0:
+                    selected = selected[:effective_limit]
+
+            if not selected:
+                raise ValueError("No companies selected for workflow run")
+
+            return selected
         finally:
             db.close()
 
@@ -310,8 +365,18 @@ class MonthEndWorkflowExecutor:
         self._update_run(status="completed", current_group="completed", progress_pct=100)
 
 
-def execute_workflow_run(workflow_run_id: int, period: str) -> dict:
-    executor = MonthEndWorkflowExecutor(workflow_run_id=workflow_run_id, period=period)
+def execute_workflow_run(
+    workflow_run_id: int,
+    period: str,
+    company_ids: Optional[list[str]] = None,
+    company_limit: Optional[int] = None,
+) -> dict:
+    executor = MonthEndWorkflowExecutor(
+        workflow_run_id=workflow_run_id,
+        period=period,
+        company_ids=company_ids,
+        company_limit=company_limit,
+    )
     try:
         return executor.execute()
     except Exception as exc:

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Users, Activity, FileText, Settings, Paperclip, ChevronLeft, ChevronRight } from "lucide-react";
+import { LayoutDashboard, Users, Activity, FileText, Settings, Paperclip, ChevronLeft, ChevronRight, Layers } from "lucide-react";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -19,6 +19,7 @@ export function Sidebar() {
     { href: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
     { href: "/companies", icon: <Users size={20} />, label: "Portfolio" },
     { href: "/agents", icon: <Activity size={20} />, label: "Orchestration" },
+    { href: "/close-output", icon: <Layers size={20} />, label: "Finalization" },
     { href: "/reports", icon: <FileText size={20} />, label: "Reports" },
     { href: "#", icon: <Paperclip size={20} />, label: "Documents" },
   ];

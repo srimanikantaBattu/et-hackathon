@@ -94,3 +94,22 @@ body {
   background: #4A4A4A;
 }
 
+/* More visible horizontal scrollbar for wide data tables */
+.custom-scrollbar-horizontal::-webkit-scrollbar {
+  height: 10px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 9999px;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb {
+  background: rgba(58, 191, 240, 0.55);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scrollbar-horizontal::-webkit-scrollbar-thumb:hover {
+  background: rgba(58, 191, 240, 0.8);
+  background-clip: padding-box;
+}
+

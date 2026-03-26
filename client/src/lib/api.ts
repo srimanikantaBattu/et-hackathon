@@ -41,6 +41,13 @@ export async function fetchWorkflowRuns(limit = 10) {
   return res.json();
 }
 
+export async function fetchWorkflowGroupOutputs(runId?: number) {
+  const runIdQuery = runId ? `?run_id=${runId}` : "";
+  const res = await fetch(`${API_BASE_URL}/workflow/group34${runIdQuery}`);
+  if (!res.ok) throw new Error("Failed to fetch Group 3/4 workflow outputs");
+  return res.json();
+}
+
 export async function fetchCompanyWorkflowHandoffs(companyId: string, runId?: number) {
   const runIdQuery = runId ? `?run_id=${runId}` : "";
   const res = await fetch(`${API_BASE_URL}/workflow/handoffs/${companyId}${runIdQuery}`);

@@ -27,10 +27,26 @@ const sharedMarkdownComponents: Components = {
   th: ({node, ...props}) => <th className="px-8 py-5 whitespace-nowrap text-[10px] text-left text-white/40 uppercase tracking-widest font-semibold" {...props} />,
   td: ({node, ...props}) => <td className="px-8 py-5 whitespace-nowrap text-xs text-white/80" {...props} />,
   strong: ({node, ...props}) => <strong className="font-semibold text-white" {...props} />,
-  code: ({node, inline, ...props}: any) => 
-    inline 
-      ? <code className="bg-white/10 text-[#3ABFF0] px-1.5 py-0.5 rounded text-[11px] font-mono" {...props} />
-      : <pre className="bg-[#18181A] border border-white/10 p-4 rounded-lg overflow-x-auto mb-4 font-mono text-[11px] text-white/70"><code {...props} /></pre>,
+  pre: ({node, ...props}) => (
+    <pre className="bg-[#18181A] border border-white/10 p-4 rounded-lg overflow-x-auto mb-4 font-mono text-[11px] text-white/70" {...props} />
+  ),
+  code: ({node, className, children, ...props}: any) => {
+    const text = Array.isArray(children) ? children.join("") : String(children ?? "");
+    const isLikelyInline = !className && !text.includes("\n");
+
+    return (
+      <code
+        className={
+          isLikelyInline
+            ? "bg-white/10 text-[#3ABFF0] px-1.5 py-0.5 rounded text-[11px] font-mono"
+            : "font-mono text-[11px] text-white/70"
+        }
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
 };
 
 const MarkdownTableDialog = (props: any) => {

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     WORKFLOW_LLM_CONCURRENCY: int = 1
     WORKFLOW_COMPANY_CONCURRENCY: int = 2
     WORKFLOW_GROUP_AGENT_CONCURRENCY: int = 2
+    WORKFLOW_TARGET_COMPANY_LIMIT: int = 4
+    WORKFLOW_TARGET_COMPANY_IDS: str = ""
     
     # Resend Email
     RESEND_API_KEY: str = ""

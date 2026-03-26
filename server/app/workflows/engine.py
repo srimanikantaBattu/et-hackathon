@@ -225,12 +225,22 @@ class MonthEndWorkflowExecutor:
             try:
                 update_agent_state(db, agent_state_name, "running", company_id)
                 agent = builder({"db": db})
+                effective_prompt = prompt
+                if attempt > 0:
+                    effective_prompt = (
+                        f"{prompt}\n\n"
+                        "RETRY MODE: The previous response failed due to malformed tool execution. "
+                        "Use only native SDK tool calling. Do NOT emit raw <function=...> tags, XML-like tags, "
+                        "or JSON error blocks in final output."
+                    )
                 with self._llm_semaphore:
-                    result = agent.run(prompt)
+                    result = agent.run(effective_prompt)
                 content = getattr(result, "content", str(result)) if result else ""
 
                 if self._looks_like_rate_limit_error(content):
                     raise RuntimeError(f"Rate limit response received from model: {content[:500]}")
+                if self._looks_like_tool_use_error(content):
+                    raise RuntimeError(f"Tool call failed or was malformed: {content[:500]}")
 
                 log_agent_action(
                     db=db,
@@ -293,6 +303,21 @@ class MonthEndWorkflowExecutor:
             "error code: 429",
             "429 too many requests",
             "tokens per minute",
+        )
+        return any(marker in lowered for marker in markers)
+
+    @staticmethod
+    def _looks_like_tool_use_error(content: str) -> bool:
+        if not content:
+            return False
+        lowered = content.lower()
+        markers = (
+            "failed to call a function",
+            "tool_use_failed",
+            "invalid_request_error",
+            "failed_generation",
+            "<function=",
+            "</function>",
         )
         return any(marker in lowered for marker in markers)
 

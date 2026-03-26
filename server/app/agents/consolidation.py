@@ -45,6 +45,7 @@ def build_consolidation_agent(db_tools: dict) -> Agent:
             "Highlight top/bottom performers by EBITDA margin.",
             "After analysis, call update_close_status_all to mark close as complete.",
             "Note: IC eliminations are handled by the Intercompany Elimination Agent before this step.",
+            "NEVER output raw <function> tags in your text response. ALWAYS use native JSON tool calling.",
         ],
         markdown=True,
     )

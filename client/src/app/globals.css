@@ -46,6 +46,31 @@
   --radius-sm: calc(var(--radius) - 4px);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  --animate-in-overlay: overlayShow 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-out-overlay: overlayHide 300ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-in-drawer: drawerShow 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-out-drawer: drawerHide 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes overlayShow {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes overlayHide {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes drawerShow {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes drawerHide {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
 }
 
 body {

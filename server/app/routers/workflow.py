@@ -3,12 +3,14 @@ Workflow trigger API router.
 POST /api/workflow/trigger -> runs the full month-end close Agno workflow
 """
 import logging
+import json
 from fastapi import APIRouter, Depends, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.database import get_db
 from app.agents.base import log_agent_action
 from app.models.workflow_run import WorkflowRun
+from app.models.workflow_handoff import WorkflowHandoff
 from app.workflows.engine import execute_workflow_run
 from app.workflows.state import RedisWorkflowState
 
@@ -132,14 +134,45 @@ def get_company_handoffs(
     if run_id:
         selected_run = db.query(WorkflowRun).filter(WorkflowRun.id == run_id).first()
     else:
-        selected_run = db.query(WorkflowRun).order_by(desc(WorkflowRun.created_at)).first()
+        latest_handoff = db.query(WorkflowHandoff).filter(
+            WorkflowHandoff.company_id == company_id
+        ).order_by(desc(WorkflowHandoff.workflow_run_id)).first()
+
+        if latest_handoff:
+            selected_run = db.query(WorkflowRun).filter(WorkflowRun.id == latest_handoff.workflow_run_id).first()
+        else:
+            selected_run = db.query(WorkflowRun).order_by(desc(WorkflowRun.created_at)).first()
 
     if not selected_run:
         return {"company_id": company_id, "run_id": None, "handoffs": {"group1": [], "group2": []}}
 
     redis_state = RedisWorkflowState()
-    group1 = redis_state.get_handoff(selected_run.id, company_id, "group1") or []
-    group2 = redis_state.get_handoff(selected_run.id, company_id, "group2") or []
+
+    def _parse_payload(raw: str):
+        try:
+            return json.loads(raw)
+        except Exception:
+            return raw
+
+    def _read_stage(stage: str):
+        row = db.query(WorkflowHandoff).filter(
+            WorkflowHandoff.workflow_run_id == selected_run.id,
+            WorkflowHandoff.company_id == company_id,
+            WorkflowHandoff.stage == stage,
+        ).first()
+        if row:
+            parsed = _parse_payload(row.payload)
+            return parsed if isinstance(parsed, list) else [str(parsed)]
+
+        fallback = redis_state.get_handoff(selected_run.id, company_id, stage)
+        if isinstance(fallback, list):
+            return fallback
+        if fallback is None:
+            return []
+        return [str(fallback)]
+
+    group1 = _read_stage("group1")
+    group2 = _read_stage("group2")
 
     def _to_snippet_items(items, stage: str):
         stage_agent_order = {
@@ -161,6 +194,7 @@ def get_company_handoffs(
             snippet_items.append({
                 "agent_name": labels[index] if index < len(labels) else f"{stage}_agent_{index + 1}",
                 "snippet": text[:500],
+                "full_response": text,
                 "has_more": len(text) > 500,
             })
         return snippet_items

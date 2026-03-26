@@ -17,5 +17,5 @@ def get_db():
 
 
 def init_db():
-    from app.models import company, trial_balance, agent_log, alert, workflow_run
+    from app.models import company, trial_balance, agent_log, alert, workflow_run, workflow_handoff
     Base.metadata.create_all(bind=engine)

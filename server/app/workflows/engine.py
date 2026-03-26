@@ -1,4 +1,5 @@
 import time
+import json
 import logging
 import threading
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from typing import Callable, Optional
 from app.database import SessionLocal
 from app.models.company import Company
 from app.models.workflow_run import WorkflowRun
+from app.models.workflow_handoff import WorkflowHandoff
 from app.agents.base import update_agent_state, log_agent_action
 from app.workflows.state import RedisWorkflowState
 from app.workflows.event_bus import WorkflowEventBus
@@ -83,6 +85,7 @@ class MonthEndWorkflowExecutor:
                     outputs.append(f"ERROR: {str(exc)}")
 
         self.shared_state.set_handoff(self.workflow_run_id, company_id, "group1", outputs)
+        self._persist_handoff_db(company_id=company_id, stage="group1", payload=outputs)
 
     def _handle_group1_completed(self) -> None:
         self._update_run(status="running", current_group="group2", progress_pct=45)
@@ -118,6 +121,35 @@ class MonthEndWorkflowExecutor:
             f"Run expense categorization review for {company_id} in period {self.period}."
         ))
         self.shared_state.set_handoff(self.workflow_run_id, company_id, "group2", outputs)
+        self._persist_handoff_db(company_id=company_id, stage="group2", payload=outputs)
+
+    def _persist_handoff_db(self, company_id: str, stage: str, payload: list[str]) -> None:
+        db = SessionLocal()
+        try:
+            existing = db.query(WorkflowHandoff).filter(
+                WorkflowHandoff.workflow_run_id == self.workflow_run_id,
+                WorkflowHandoff.company_id == company_id,
+                WorkflowHandoff.stage == stage,
+            ).first()
+
+            raw_payload = json.dumps(payload)
+            if existing:
+                existing.payload = raw_payload
+            else:
+                db.add(
+                    WorkflowHandoff(
+                        workflow_run_id=self.workflow_run_id,
+                        company_id=company_id,
+                        stage=stage,
+                        payload=raw_payload,
+                    )
+                )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to persist workflow handoff to DB")
+        finally:
+            db.close()
 
     def _handle_group2_completed(self) -> None:
         self._update_run(status="running", current_group="group3", progress_pct=70)

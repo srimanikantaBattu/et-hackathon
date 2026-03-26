@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from datetime import datetime
 from app.database import get_db
 from app.models.alert import Alert, IntercompanyTransaction
 
@@ -137,16 +138,43 @@ def get_variances(period: str = Query("2026-01"), db: Session = Depends(get_db))
     from app.models.trial_balance import TrialBalance, Budget
     from sqlalchemy import and_
 
+    def _to_float(value, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _previous_period(current_period: str) -> str:
+        dt = datetime.strptime(current_period, "%Y-%m")
+        if dt.month == 1:
+            return f"{dt.year - 1}-12"
+        return f"{dt.year}-{str(dt.month - 1).zfill(2)}"
+
+    def _impact_label(account_type: str, variance_amount: float) -> str:
+        if abs(variance_amount) < 0.005:
+            return "neutral"
+        if account_type == "Revenue":
+            return "favorable" if variance_amount > 0 else "unfavorable"
+        if account_type in ("COGS", "Operating Expense"):
+            return "favorable" if variance_amount < 0 else "unfavorable"
+        return "neutral"
+
     period_parts = period.split("-")
     year, month = int(period_parts[0]), int(period_parts[1])
+    prior_period = _previous_period(period)
 
     tb_rows = db.query(TrialBalance).filter(TrialBalance.period == period).all()
+    prior_tb_rows = db.query(TrialBalance).filter(TrialBalance.period == prior_period).all()
     budget_rows = db.query(Budget).filter(and_(Budget.year == year, Budget.month == month)).all()
 
     # Build lookup: company_id + account_code -> budget
     budget_map = {}
     for b in budget_rows:
-        budget_map[(b.company_id, b.account_code)] = b.budget_amount
+        budget_map[(b.company_id, b.account_code)] = _to_float(b.budget_amount)
+
+    prior_map = {}
+    for r in prior_tb_rows:
+        prior_map[(r.company_id, r.account_code)] = abs(_to_float(r.balance))
 
     variances = []
     for r in tb_rows:
@@ -156,10 +184,22 @@ def get_variances(period: str = Query("2026-01"), db: Session = Depends(get_db))
         budget_amount = budget_map.get(key)
         if budget_amount is None or budget_amount == 0:
             continue
-        actual = abs(r.balance)
-        variance_amt = actual - budget_amount
-        variance_pct = (variance_amt / budget_amount) * 100 if budget_amount else 0
-        if abs(variance_pct) >= 10 or abs(variance_amt) >= 50000:
+        actual = abs(_to_float(r.balance))
+
+        variance_amt_budget = actual - budget_amount
+        variance_pct_budget = (variance_amt_budget / budget_amount) * 100 if budget_amount else 0
+
+        prior_actual = _to_float(prior_map.get(key))
+        has_prior = prior_actual != 0
+        variance_amt_mom = (actual - prior_actual) if has_prior else 0.0
+        variance_pct_mom = (variance_amt_mom / prior_actual) * 100 if has_prior else None
+
+        is_material_budget = abs(variance_pct_budget) >= 10 or abs(variance_amt_budget) >= 50000
+        is_material_mom = has_prior and (
+            (variance_pct_mom is not None and abs(variance_pct_mom) >= 10) or abs(variance_amt_mom) >= 50000
+        )
+
+        if is_material_budget or is_material_mom:
             variances.append({
                 "company_id": r.company_id,
                 "account_code": r.account_code,
@@ -167,9 +207,22 @@ def get_variances(period: str = Query("2026-01"), db: Session = Depends(get_db))
                 "account_type": r.account_type,
                 "actual": actual,
                 "budget": budget_amount,
-                "variance_amount": variance_amt,
-                "variance_pct": round(variance_pct, 1),
-                "severity": "critical" if abs(variance_pct) >= 20 or abs(variance_amt) >= 100000 else "warning",
+                "prior_month_actual": prior_actual if has_prior else None,
+                "variance_amount": variance_amt_budget,
+                "variance_pct": round(variance_pct_budget, 1),
+                "variance_to_budget_amount": variance_amt_budget,
+                "variance_to_budget_pct": round(variance_pct_budget, 1),
+                "variance_to_prior_month_amount": variance_amt_mom if has_prior else None,
+                "variance_to_prior_month_pct": round(variance_pct_mom, 1) if variance_pct_mom is not None else None,
+                "impact_vs_budget": _impact_label(r.account_type, variance_amt_budget),
+                "impact_vs_prior_month": _impact_label(r.account_type, variance_amt_mom) if has_prior else "neutral",
+                "severity": "critical" if abs(variance_pct_budget) >= 20 or abs(variance_amt_budget) >= 100000 else "warning",
+                "materiality_basis": [
+                    basis for basis, triggered in {
+                        "budget": is_material_budget,
+                        "prior_month": is_material_mom,
+                    }.items() if triggered
+                ],
             })
 
     variances.sort(key=lambda x: abs(x["variance_amount"]), reverse=True)

@@ -14,10 +14,12 @@ et-hackathon/
 │   │   │   ├── page.tsx             # Dashboard (main view)
 │   │   │   ├── layout.tsx           # Root layout with sidebar
 │   │   │   ├── agents/page.tsx      # Agent audit trail page
+│   │   │   ├── close-output/page.tsx # Group 3/4 finalization outputs
 │   │   │   ├── companies/
 │   │   │   │   ├── page.tsx         # Portfolio grid page
-│   │   │   │   └── [id]/page.tsx    # Company detail (financials, variances, handoffs)
-│   │   │   └── reports/page.tsx     # Financial reports page
+│   │   │   │   └── [id]/page.tsx    # Company detail (variances, TB, statements, handoffs)
+│   │   │   ├── reports/page.tsx     # Financial reports page
+│   │   │   └── settings/page.tsx    # Settings workspace
 │   │   ├── components/
 │   │   │   ├── agent-activity-feed.tsx  # Real-time WebSocket activity feed
 │   │   │   ├── providers.tsx            # React Query provider
@@ -46,7 +48,8 @@ et-hackathon/
 │   │   │   ├── companies.py         # /api/companies endpoints
 │   │   │   ├── agents.py            # /api/agents/status, /api/agents/logs
 │   │   │   ├── financials.py        # /api/alerts, /api/intercompany, /api/consolidation, /api/variances
-│   │   │   └── workflow.py          # /api/workflow/trigger, status, runs, handoffs
+│   │   │   ├── workflow.py          # /api/workflow/trigger, status, runs, group34, handoffs
+│   │   │   └── reports.py           # /api/reports summary, email, downloads
 │   │   ├── agents/                  # 10 Agno-based AI agents
 │   │   │   ├── base.py              # Shared: log_agent_action, call_llm, get_groq_model
 │   │   │   ├── tools.py             # Agent tool functions (DB queries, alerts, etc.)
@@ -77,6 +80,7 @@ et-hackathon/
 │   │   ├── budgets/                 # budgets_2026.csv (1548 records)
 │   │   ├── prior_year/              # Prior year comparatives
 │   │   ├── intercompany/            # 3000 intercompany transactions
+│   │   ├── contracts/               # Revenue contracts for rev rec checks
 │   │   ├── bank_statements/         # Mock bank statement CSVs
 │   │   ├── accrual_schedules/       # 1008 accrual schedule entries
 │   │   └── company_metadata.json    # 8 company profiles
@@ -127,7 +131,8 @@ FastAPI App (main.py)
   │   ├── /api/consolidation   → Portfolio-wide P&L
   │   ├── /api/variances       → Cross-company variance report
   │   ├── /api/intercompany    → IC transaction tracking
-  │   └── /api/workflow        → Trigger, status, runs, handoffs
+  │   ├── /api/workflow        → Trigger, status, runs, group 3/4 outputs, handoffs
+  │   └── /api/reports         → Reporting summary, partner email, export downloads
   └── Socket.io ASGI Wrapper   → Real-time agent_update events
 ```
 ### Workflow Execution Groups
@@ -240,19 +245,26 @@ All agents use the **Agno Framework** with **Groq Llama 3.3 70B**.
 - Grid of 8 company cards with industry, status, and currency
 - Links to individual company detail pages
 ### 3. Company Detail (`/companies/[id]`) — `companies/[id]/page.tsx`
-- **Tabs**: Variance Analysis | Trial Balance
+- **Tabs**: Variance Analysis | Trial Balance | Statements
 - **Variance table**: Account, Actual, Budget, Variance $, %, AI Insights
+- **Statements tab**: P&L (actual/prior/budget), Balance Sheet snapshot, Cash Flow snapshot
 - **Agent Handoffs panel**: Group 1 & Group 2 outputs rendered as markdown
 - **Full-screen handoff drawer**: Expandable markdown viewer with table dialogs
 - **Issue tracker sidebar**: Active alerts by type
 ### 4. Agent Audit Trail (`/agents`) — `agents/page.tsx`
 - Full-width trace table: Timestamp, Agent, Severity, Company, Action + Details
+- Filters for `agent_name`, `severity`, and `company_id`
 - Live WebSocket indicator
 - Polls every 5 seconds
-### 5. Financial Reports (`/reports`) — `reports/page.tsx`
-- Consolidated P&L summary cards (Revenue, EBITDA, Gross Profit, Net Income)
-- Auto-generated executive commentary
-- Download stubs (PDF, Excel, CSV)
+### 5. Finalization (`/close-output`) — `close-output/page.tsx`
+- Dedicated Group 3 and Group 4 output view per workflow run
+- Markdown-rendered intercompany elimination and consolidation/reporting outputs
+### 6. Financial Reports (`/reports`) — `reports/page.tsx`
+- Run-aware reporting summary with AI-generated commentary
+- Working actions: partner email trigger + PDF/CSV downloads
+- Report exports: complete financials PDF, intercompany matrix CSV, agent audit CSV
+### 7. Settings (`/settings`) — `settings/page.tsx`
+- Email preferences, variance thresholds, scheduling, and company scope controls
 ### Key UI Components
 - **`AgentActivityFeed`**: Real-time timeline with WebSocket + REST polling fallback
 - **`Sidebar`**: Collapsible nav with optimistic routing
@@ -271,10 +283,16 @@ All agents use the **Agno Framework** with **Groq Llama 3.3 70B**.
 | GET | `/api/intercompany?period=` | IC transactions summary |
 | GET | `/api/consolidation?period=` | Consolidated P&L |
 | GET | `/api/variances?period=` | Cross-company variances |
-| POST | `/api/workflow/trigger?period=` | Start workflow (background) |
+| POST | `/api/workflow/trigger?period=&company_ids=&company_limit=` | Start workflow (background, optional scoped company run) |
 | GET | `/api/workflow/status` | Current workflow state |
 | GET | `/api/workflow/runs?limit=` | Workflow run history |
+| GET | `/api/workflow/group34?run_id=` | Group 3/4 finalization outputs for a run |
 | GET | `/api/workflow/handoffs/{company_id}?run_id=` | Agent handoff data |
+| GET | `/api/reports/summary?period=&run_id=` | Reports summary + AI commentary |
+| POST | `/api/reports/email?period=&run_id=` | Trigger partner email for selected run |
+| GET | `/api/reports/download/complete-financials.pdf?period=&run_id=` | Download PDF report |
+| GET | `/api/reports/download/intercompany-matrix.csv?period=` | Download intercompany CSV |
+| GET | `/api/reports/download/agent-audit.csv?run_id=&limit=` | Download agent audit CSV |
 | GET | `/health` | Health check |
 | WS | Socket.io `agent_update` | Real-time agent events |
 ---

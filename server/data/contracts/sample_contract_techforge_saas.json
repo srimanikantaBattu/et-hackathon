@@ -1,0 +1,22 @@
+{
+  "contract_id": "CNTR-2024-001",
+  "customer": "Acme Corporation",
+  "company": "techforge_saas",
+  "start_date": "2024-06-01",
+  "end_date": "2027-05-31",
+  "total_contract_value": 540000,
+  "billing_schedule": "annual",
+  "performance_obligations": [
+    {
+      "description": "Software subscription",
+      "revenue_recognition": "ratable",
+      "value": 480000
+    },
+    {
+      "description": "Implementation services",
+      "revenue_recognition": "milestone",
+      "value": 60000,
+      "completion_percentage": 80
+    }
+  ]
+}

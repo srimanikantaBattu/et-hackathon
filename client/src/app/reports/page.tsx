@@ -1,15 +1,62 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchConsolidation } from "@/lib/api";
+import { buildReportDownloadUrl, fetchReportsSummary, fetchWorkflowRuns, triggerReportsEmail } from "@/lib/api";
 import { FileText, Download, Mail, Loader2, Target, TrendingUp, BarChart3, Presentation, Server } from "lucide-react";
 import { format } from "date-fns";
+import { useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Link from "next/link";
 
 export default function ReportsPage() {
-  const { data: consolidation, isLoading } = useQuery({ 
-    queryKey: ["consolidation"], 
-    queryFn: () => fetchConsolidation("2026-01") 
+  const [selectedRunId, setSelectedRunId] = useState<number | undefined>(undefined);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const { data: runs } = useQuery({
+    queryKey: ["workflowRuns", "reports"],
+    queryFn: () => fetchWorkflowRuns(25),
+    refetchInterval: 6000,
+  });
+
+  const selectedRun = useMemo(
+    () => runs?.find((run: any) => run.id === selectedRunId),
+    [runs, selectedRunId]
+  );
+
+  const effectivePeriod = selectedRun?.period || "2026-01";
+
+  const { data: reportsData, isLoading } = useQuery({
+    queryKey: ["reportsSummary", effectivePeriod, selectedRunId],
+    queryFn: () => fetchReportsSummary(effectivePeriod, selectedRunId),
+    refetchInterval: 6000,
+  });
+
+  const consolidation = reportsData?.summary;
+  const aiSummary = reportsData?.ai_summary;
+
+  const handleEmailPartners = async () => {
+    try {
+      setIsSendingEmail(true);
+      await triggerReportsEmail(effectivePeriod, selectedRunId);
+      window.alert("Partner email request completed. Check logs for delivery status.");
+    } catch (error) {
+      window.alert("Failed to send partner email. Please retry.");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const completeFinancialsUrl = buildReportDownloadUrl("complete-financials.pdf", {
+    period: effectivePeriod,
+    run_id: selectedRunId,
+  });
+  const intercompanyMatrixUrl = buildReportDownloadUrl("intercompany-matrix.csv", {
+    period: effectivePeriod,
+  });
+  const agentAuditUrl = buildReportDownloadUrl("agent-audit.csv", {
+    run_id: selectedRunId,
+    limit: 2000,
   });
 
   const formatCurrency = (val: number) => {
@@ -23,13 +70,30 @@ export default function ReportsPage() {
           <h2 className="text-[2.5rem] font-semibold tracking-tight leading-none">Financial Reports</h2>
           <p className="text-[12px] font-bold text-white/40 uppercase tracking-[0.2em] mt-4">Consolidated packages and auditor exports.</p>
         </div>
-        <div className="flex gap-3">
-          <button className="inline-flex items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-wider transition-all border border-white/10 bg-[#242529] text-white/70 hover:bg-[#2A2B2D] hover:text-white px-5 py-2.5">
-            <Mail className="mr-2 h-4 w-4" /> Email Partners
+        <div className="flex gap-3 items-center">
+          <select
+            value={selectedRunId ?? "latest"}
+            onChange={(e) => setSelectedRunId(e.target.value === "latest" ? undefined : Number(e.target.value))}
+            className="rounded-xl border border-white/10 bg-[#242529] text-white/80 px-3 py-2.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#3ABFF0]/40"
+          >
+            <option value="latest">Latest run</option>
+            {runs?.map((run: any) => (
+              <option key={run.id} value={run.id}>{`Run #${run.id} • ${run.period} • ${run.status}`}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleEmailPartners}
+            disabled={isSendingEmail}
+            className="inline-flex items-center justify-center rounded-xl text-xs font-semibold uppercase tracking-wider transition-all border border-white/10 bg-[#242529] text-white/70 hover:bg-[#2A2B2D] hover:text-white px-5 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isSendingEmail ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />} {isSendingEmail ? "Sending..." : "Email Partners"}
           </button>
-          <button className="inline-flex items-center justify-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-[#D4FF3A] text-black hover:bg-[#bceb2b] shadow-[0_0_20px_rgba(212,255,58,0.3)] px-5 py-2.5">
+          <a
+            href={completeFinancialsUrl}
+            className="inline-flex items-center justify-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-[#D4FF3A] text-black hover:bg-[#bceb2b] shadow-[0_0_20px_rgba(212,255,58,0.3)] px-5 py-2.5"
+          >
             <Download className="mr-2 h-4 w-4" /> Export PDF
-          </button>
+          </a>
         </div>
       </div>
 
@@ -45,10 +109,10 @@ export default function ReportsPage() {
                   <Presentation size={20} className="text-[#D4FF3A]" /> 
                   Month-End Close Summary
                 </h3>
-                <p className="text-[11px] text-white/40 mt-2 uppercase tracking-widest font-mono">Generated autonomously by Reporting Agent on {format(new Date(), "MMM dd, yyyy")}</p>
+                <p className="text-[11px] text-white/40 mt-2 uppercase tracking-widest font-mono">Generated autonomously by Reporting Agent on {format(new Date(reportsData?.generated_at || Date.now()), "MMM dd, yyyy")}</p>
               </div>
               <div className="px-3 py-1 bg-[#D4FF3A]/10 text-[#D4FF3A] uppercase text-[10px] tracking-widest font-bold rounded-sm border border-[#D4FF3A]/20">
-                Internal Draft
+                Run {reportsData?.run_id ? `#${reportsData.run_id}` : "Latest"}
               </div>
             </div>
 
@@ -89,13 +153,32 @@ export default function ReportsPage() {
                       <Target size={16} className="text-[#FFB03A]"/> Executive Commentary
                     </h4>
                     <div className="bg-black/30 p-6 rounded-2xl border border-white/[0.02] text-[13px] text-white/60 leading-loose">
-                      <p>
-                        The portfolio exhibited strong performance for the period 2026-01. Total consolidated gross margin stood at <span className="text-white/90 font-mono font-medium">{consolidation?.gross_margin_pct?.toFixed(1) || 0}%</span>, 
-                        with EBITDA margins effectively scaling at <span className="text-white/90 font-mono font-medium">{consolidation?.ebitda_margin_pct?.toFixed(1) || 0}%</span>. Intercompany eliminations were fully reconciled by the autonomous orchestration agent with $0 in out-of-balance residual transactions.
-                      </p>
-                      <p className="mt-4">
-                        All <span className="text-white/90 font-mono font-medium">{consolidation?.portfolio_companies || 8}</span> subsidiary entities successfully closed their books. The AI Variance Analysis agent flagged multiple accounts for human-in-the-loop review where deviations exceeded the hard-coded 10% tolerance threshold, primarily driven by seasonal payroll accruals and SaaS software capitalization changes.
-                      </p>
+                      {aiSummary ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            p: ({node, ...props}) => <p className="mb-4 text-[13px] text-white/65 leading-loose" {...props} />,
+                            h1: ({node, ...props}) => <h1 className="text-base font-semibold text-white mb-3" {...props} />,
+                            h2: ({node, ...props}) => <h2 className="text-sm font-semibold text-white/90 mb-2" {...props} />,
+                            h3: ({node, ...props}) => <h3 className="text-sm font-semibold text-white/85 mb-2" {...props} />,
+                            ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-4 text-white/65" {...props} />,
+                            ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-4 text-white/65" {...props} />,
+                            li: ({node, ...props}) => <li className="mb-1" {...props} />,
+                            strong: ({node, ...props}) => <strong className="text-white/90" {...props} />,
+                          }}
+                        >
+                          {aiSummary}
+                        </ReactMarkdown>
+                      ) : (
+                        <>
+                          <p>
+                            Dynamic reporting output is not available for this selected run. Consolidated gross margin is currently <span className="text-white/90 font-mono font-medium">{consolidation?.gross_margin_pct?.toFixed(1) || 0}%</span> and EBITDA margin is <span className="text-white/90 font-mono font-medium">{consolidation?.ebitda_margin_pct?.toFixed(1) || 0}%</span>.
+                          </p>
+                          <p className="mt-4">
+                            Open issues requiring review: <span className="text-white/90 font-mono font-medium">{reportsData?.open_alerts || 0}</span>. Run ID: <span className="text-white/90 font-mono font-medium">{reportsData?.run_id || "N/A"}</span>.
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -111,47 +194,62 @@ export default function ReportsPage() {
             </h3>
             
             <div className="space-y-4">
-              <Link href="#" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+              <a href={completeFinancialsUrl} className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FF5577]/10 flex items-center justify-center text-[#FF5577]">
                     <FileText size={18} />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-white/90">Complete Financials</h4>
-                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">PDF &bull; 2.4 MB</p>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">PDF &bull; Generated on click</p>
                   </div>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#FF5577]/20 group-hover:text-[#FF5577] transition-all">
                   <Download size={14} />
                 </div>
-              </Link>
+              </a>
               
-              <Link href="#" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+              <a href={intercompanyMatrixUrl} className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-[#3ABFF0]/10 flex items-center justify-center text-[#3ABFF0]">
                     <FileText size={18} />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-white/90">Intercompany Matrix</h4>
-                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">Excel &bull; 45 KB</p>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">CSV &bull; Generated on click</p>
                   </div>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#3ABFF0]/20 group-hover:text-[#3ABFF0] transition-all">
                   <Download size={14} />
                 </div>
-              </Link>
+              </a>
               
-              <Link href="/agents" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+              <a href={agentAuditUrl} className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-[#FFB03A]/10 flex items-center justify-center text-[#FFB03A]">
                     <Server size={18} />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-white/90">Agent Audit Trail</h4>
-                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">CSV &bull; 1.1 MB</p>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">CSV &bull; Latest run window</p>
                   </div>
                 </div>
                 <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#FFB03A]/20 group-hover:text-[#FFB03A] transition-all">
+                  <Download size={14} />
+                </div>
+              </a>
+
+              <Link href="/agents" className="flex items-center justify-between p-4 bg-[#242529] rounded-xl border border-white/[0.03] hover:border-white/10 hover:bg-[#2A2B2D] transition-all group">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#D4FF3A]/10 flex items-center justify-center text-[#D4FF3A]">
+                    <Server size={18} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-white/90">Open Live Audit Trail</h4>
+                    <p className="text-[10px] uppercase font-mono tracking-widest text-white/40 mt-1">Interactive view</p>
+                  </div>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/30 group-hover:bg-[#D4FF3A]/20 group-hover:text-[#D4FF3A] transition-all">
                   <Download size={14} />
                 </div>
               </Link>

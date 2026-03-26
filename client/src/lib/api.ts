@@ -23,6 +23,35 @@ export async function fetchConsolidation(period = "2026-01") {
   return res.json();
 }
 
+export async function fetchReportsSummary(period = "2026-01", runId?: number) {
+  const runQuery = runId ? `&run_id=${runId}` : "";
+  const res = await fetch(`${API_BASE_URL}/reports/summary?period=${period}${runQuery}`);
+  if (!res.ok) throw new Error("Failed to fetch reports summary");
+  return res.json();
+}
+
+export async function triggerReportsEmail(period = "2026-01", runId?: number) {
+  const runQuery = runId ? `&run_id=${runId}` : "";
+  const res = await fetch(`${API_BASE_URL}/reports/email?period=${period}${runQuery}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to send reports email");
+  return res.json();
+}
+
+export function buildReportDownloadUrl(path: string, params?: Record<string, string | number | undefined>) {
+  const query = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value).length > 0) {
+        query.set(key, String(value));
+      }
+    });
+  }
+  const queryString = query.toString();
+  return `${API_BASE_URL}/reports/download/${path}${queryString ? `?${queryString}` : ""}`;
+}
+
 export async function fetchAgentStatus() {
   const res = await fetch(`${API_BASE_URL}/agents/status`);
   if (!res.ok) throw new Error("Failed to fetch agent status");
@@ -55,11 +84,18 @@ export async function fetchCompanyWorkflowHandoffs(companyId: string, runId?: nu
   return res.json();
 }
 
-export async function fetchAgentLogs(companyId?: string, limit = 100) {
-  const url = companyId 
-    ? `${API_BASE_URL}/agents/logs?company_id=${companyId}&limit=${limit}`
-    : `${API_BASE_URL}/agents/logs?limit=${limit}`;
-  const res = await fetch(url);
+export async function fetchAgentLogs(
+  companyId?: string,
+  limit = 100,
+  filters?: { agentName?: string; severity?: string }
+) {
+  const query = new URLSearchParams();
+  query.set("limit", String(limit));
+  if (companyId) query.set("company_id", companyId);
+  if (filters?.agentName) query.set("agent_name", filters.agentName);
+  if (filters?.severity) query.set("severity", filters.severity);
+
+  const res = await fetch(`${API_BASE_URL}/agents/logs?${query.toString()}`);
   if (!res.ok) throw new Error("Failed to fetch agent logs");
   return res.json();
 }

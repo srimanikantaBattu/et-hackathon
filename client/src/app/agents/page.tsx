@@ -4,24 +4,84 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchAgentLogs } from "@/lib/api";
 import { format } from "date-fns";
 import { Loader2, Server, Filter } from "lucide-react";
+import { useMemo, useState } from "react";
 
 export default function AgentsPage() {
+  const [agentFilter, setAgentFilter] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [companyFilter, setCompanyFilter] = useState("");
+
+  const normalizedSeverity = severityFilter === "all" ? undefined : severityFilter;
+  const hasFilters = Boolean(agentFilter.trim() || companyFilter.trim() || normalizedSeverity);
+
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["agentLogs", "all"],
-    queryFn: () => fetchAgentLogs(undefined, 200),
+    queryKey: ["agentLogs", "all", agentFilter, severityFilter, companyFilter],
+    queryFn: () =>
+      fetchAgentLogs(companyFilter.trim() || undefined, 200, {
+        agentName: agentFilter.trim() || undefined,
+        severity: normalizedSeverity,
+      }),
     refetchInterval: 5000, // Poll every 5s on this page as ultimate backup
   });
 
+  const discoveredAgents = useMemo(() => {
+    const names = new Set<string>();
+    (logs || []).forEach((log: any) => {
+      if (log?.agent_name) names.add(String(log.agent_name));
+    });
+    return Array.from(names).sort();
+  }, [logs]);
+
   return (
     <div className="flex-1 space-y-8 p-10 overflow-y-auto custom-scrollbar bg-[#18181A] text-white">
-      <div className="flex justify-between items-end mb-8 border-b border-white/5 pb-6">
+      <div className="flex flex-col gap-5 mb-8 border-b border-white/5 pb-6">
         <div>
           <h2 className="text-[2.5rem] font-semibold tracking-tight leading-none text-white">Agent Audit Trail</h2>
           <p className="text-[12px] font-bold text-white/40 uppercase tracking-[0.2em] mt-4">Security, compliance, and reasoning trace for all autonomous actions.</p>
         </div>
-        <button className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#242529] hover:bg-[#2A2B2D] transition-all text-white/70 hover:text-white px-4 py-2.5 text-xs font-semibold tracking-wider uppercase">
-          <Filter size={14} /> Filter Trace
-        </button>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <input
+            value={agentFilter}
+            onChange={(e) => setAgentFilter(e.target.value)}
+            list="agent-name-options"
+            placeholder="Filter by agent name"
+            className="rounded-xl border border-white/10 bg-[#242529] px-3 py-2.5 text-xs text-white/80 placeholder:text-white/35 outline-none focus:border-[#3ABFF0]/60"
+          />
+          <datalist id="agent-name-options">
+            {discoveredAgents.map((agent) => (
+              <option key={agent} value={agent} />
+            ))}
+          </datalist>
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value)}
+            className="rounded-xl border border-white/10 bg-[#242529] px-3 py-2.5 text-xs text-white/80 outline-none focus:border-[#3ABFF0]/60"
+          >
+            <option value="all">All severities</option>
+            <option value="info">Info</option>
+            <option value="success">Success</option>
+            <option value="warning">Warning</option>
+            <option value="error">Error</option>
+          </select>
+          <input
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            placeholder="Filter by company id"
+            className="rounded-xl border border-white/10 bg-[#242529] px-3 py-2.5 text-xs text-white/80 placeholder:text-white/35 outline-none focus:border-[#3ABFF0]/60"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setAgentFilter("");
+              setSeverityFilter("all");
+              setCompanyFilter("");
+            }}
+            disabled={!hasFilters}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#242529] hover:bg-[#2A2B2D] transition-all text-white/70 hover:text-white px-4 py-2.5 text-xs font-semibold tracking-wider uppercase disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Filter size={14} /> Clear Filters
+          </button>
+        </div>
       </div>
 
       <div className="bg-[#1C1C1E] rounded-[24px] border border-white/[0.04] overflow-hidden shadow-2xl flex flex-col h-[calc(100vh-220px)]">
@@ -31,7 +91,7 @@ export default function AgentsPage() {
               <Server size={18} className="text-[#D4FF3A]" /> 
               Master Trace File
             </h3>
-            <p className="text-[11px] text-white/40 mt-1">Live streaming last 200 execution events</p>
+            <p className="text-[11px] text-white/40 mt-1">Live streaming last {logs?.length ?? 0} execution events</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">

@@ -129,6 +129,21 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
   if (error || !data || !data.company) return <div className="p-8 text-destructive">Failed to load company data.</div>;
 
   const { company, trial_balance, variances, alerts } = data;
+  const plSummary = data?.pl_summary || {};
+  const plPrior = data?.pl_prior_year || {};
+  const plBudget = data?.pl_budget || {};
+  const balanceSheet = data?.balance_sheet || {};
+  const cashFlow = data?.cash_flow || {};
+
+  const toNumber = (value: unknown) => Number(value ?? 0);
+  const formatCurrency = (value: unknown) => `$${toNumber(value).toLocaleString()}`;
+  const formatPct = (actual: unknown, baseline: unknown) => {
+    const actualNum = toNumber(actual);
+    const baselineNum = toNumber(baseline);
+    if (baselineNum === 0) return "-";
+    const pct = ((actualNum - baselineNum) / Math.abs(baselineNum)) * 100;
+    return `${pct.toFixed(1)}%`;
+  };
 
   return (
     <div className="flex-1 space-y-8 p-10 overflow-y-auto custom-scrollbar bg-[#18181A] text-white">
@@ -159,9 +174,10 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="md:col-span-3 space-y-6">
           <Tabs defaultValue="variances" className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2 bg-[#1C1C1E] p-1 rounded-xl border border-white/5 mb-6">
+            <TabsList className="grid w-full max-w-2xl grid-cols-3 bg-[#1C1C1E] p-1 rounded-xl border border-white/5 mb-6">
               <TabsTrigger value="variances" className="data-[state=active]:bg-[#2A2B2D] data-[state=active]:text-white rounded-lg text-xs">Variance Analysis</TabsTrigger>
               <TabsTrigger value="tb" className="data-[state=active]:bg-[#2A2B2D] data-[state=active]:text-white rounded-lg text-xs">Trial Balance</TabsTrigger>
+              <TabsTrigger value="statements" className="data-[state=active]:bg-[#2A2B2D] data-[state=active]:text-white rounded-lg text-xs">Statements</TabsTrigger>
             </TabsList>
             
             <TabsContent value="variances" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
@@ -233,6 +249,87 @@ export default function CompanyDetail({ params }: { params: Promise<{ id: string
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="statements" className="mt-0 focus-visible:outline-none focus-visible:ring-0">
+              <div className="space-y-6">
+                <Card className="bg-[#1C1C1E] border-white/[0.03] rounded-[24px] shadow-xl">
+                  <CardHeader className="border-b border-white/5">
+                    <CardTitle className="text-white/90">Profit &amp; Loss Summary</CardTitle>
+                    <CardDescription className="text-white/40">Actual vs prior year vs budget (2026-01)</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full min-w-[760px] text-sm text-left border-collapse">
+                        <thead className="bg-[#18181A] text-white/40 text-[10px] uppercase tracking-wider border-b border-white/5">
+                          <tr>
+                            <th className="px-6 py-4">Line Item</th>
+                            <th className="px-6 py-4 text-right">Actual</th>
+                            <th className="px-6 py-4 text-right">Prior Year</th>
+                            <th className="px-6 py-4 text-right">Budget</th>
+                            <th className="px-6 py-4 text-right">Vs PY %</th>
+                            <th className="px-6 py-4 text-right">Vs Budget %</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5">
+                          {[
+                            { key: "revenue", label: "Revenue" },
+                            { key: "cogs", label: "COGS" },
+                            { key: "gross_profit", label: "Gross Profit" },
+                            { key: "opex", label: "Operating Expense" },
+                            { key: "ebitda", label: "EBITDA" },
+                          ].map((item) => {
+                            const actual = toNumber(plSummary?.[item.key]);
+                            const prior = toNumber(plPrior?.[item.key]);
+                            const budget = toNumber(plBudget?.[item.key]);
+                            return (
+                              <tr key={item.key} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="px-6 py-4 text-white/80 font-medium">{item.label}</td>
+                                <td className="px-6 py-4 text-right text-white/80">{formatCurrency(actual)}</td>
+                                <td className="px-6 py-4 text-right text-white/70">{formatCurrency(prior)}</td>
+                                <td className="px-6 py-4 text-right text-white/70">{formatCurrency(budget)}</td>
+                                <td className="px-6 py-4 text-right text-white/60">{formatPct(actual, prior)}</td>
+                                <td className="px-6 py-4 text-right text-white/60">{formatPct(actual, budget)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="bg-[#1C1C1E] border-white/[0.03] rounded-[24px] shadow-xl">
+                    <CardHeader className="border-b border-white/5">
+                      <CardTitle className="text-white/90">Balance Sheet Snapshot</CardTitle>
+                      <CardDescription className="text-white/40">Period-end balance check</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-3">
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Assets</span><span className="text-white/90 font-medium">{formatCurrency(balanceSheet.assets)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Liabilities</span><span className="text-white/80">{formatCurrency(balanceSheet.liabilities)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Equity</span><span className="text-white/80">{formatCurrency(balanceSheet.equity)}</span></div>
+                      <div className="flex items-center justify-between text-sm pt-3 border-t border-white/5"><span className="text-white/40 uppercase tracking-wider text-[10px]">Liabilities + Equity</span><span className="text-white/90 font-medium">{formatCurrency(balanceSheet.liabilities_plus_equity)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/40 uppercase tracking-wider text-[10px]">Balance Gap</span><span className="text-[#FFB03A] font-medium">{formatCurrency(balanceSheet.balance_gap)}</span></div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-[#1C1C1E] border-white/[0.03] rounded-[24px] shadow-xl">
+                    <CardHeader className="border-b border-white/5">
+                      <CardTitle className="text-white/90">Cash Flow Snapshot</CardTitle>
+                      <CardDescription className="text-white/40">Derived movement from prior period</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-3">
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Beginning Cash</span><span className="text-white/80">{formatCurrency(cashFlow.beginning_cash)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Operating Cash</span><span className="text-white/80">{formatCurrency(cashFlow.operating_cash)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Investing Cash</span><span className="text-white/80">{formatCurrency(cashFlow.investing_cash)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/50">Financing Cash</span><span className="text-white/80">{formatCurrency(cashFlow.financing_cash)}</span></div>
+                      <div className="flex items-center justify-between text-sm pt-3 border-t border-white/5"><span className="text-white/40 uppercase tracking-wider text-[10px]">Net Cash Change</span><span className="text-[#3ABFF0] font-medium">{formatCurrency(cashFlow.net_cash_change)}</span></div>
+                      <div className="flex items-center justify-between text-sm"><span className="text-white/40 uppercase tracking-wider text-[10px]">Ending Cash</span><span className="text-white/90 font-medium">{formatCurrency(cashFlow.ending_cash)}</span></div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </TabsContent>

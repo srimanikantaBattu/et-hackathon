@@ -12,6 +12,7 @@ This dataset contains realistic financial data for 8 portfolio companies spannin
 ├── budgets/             # 2026 annual budgets
 ├── prior_year/          # Prior year comparatives (2024-2025)
 ├── intercompany/        # Intercompany transactions requiring elimination
+├── contracts/           # Revenue contracts for rev rec analysis
 ├── bank_statements/     # Mock bank statements
 ├── accrual_schedules/   # Standard accrual templates
 └── company_metadata.json # Company profiles

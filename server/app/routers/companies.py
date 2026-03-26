@@ -117,6 +117,91 @@ def get_company_financials(company_id: str, period: str = "2026-01", db: Session
         ebitda = gross_profit - opex
         return {"revenue": revenue, "cogs": cogs, "gross_profit": gross_profit, "opex": opex, "ebitda": ebitda}
 
+    def infer_budget_pl(rows):
+        revenue = 0.0
+        cogs = 0.0
+        opex = 0.0
+        for row in rows:
+            code = int(_to_float(getattr(row, "account_code", 0)))
+            amount = _to_float(getattr(row, "budget_amount", 0.0))
+            if 4000 <= code < 5000:
+                revenue += amount
+            elif 5000 <= code < 6000:
+                cogs += amount
+            elif 6000 <= code < 9000:
+                opex += amount
+        gross_profit = revenue - cogs
+        ebitda = gross_profit - opex
+        return {
+            "revenue": revenue,
+            "cogs": cogs,
+            "gross_profit": gross_profit,
+            "opex": opex,
+            "ebitda": ebitda,
+        }
+
+    def compute_balance_sheet(rows):
+        assets = sum(_to_float(r.balance) for r in rows if r.account_type == "Asset")
+        liabilities = sum(_to_float(r.balance) for r in rows if r.account_type == "Liability")
+        equity = sum(_to_float(r.balance) for r in rows if r.account_type == "Equity")
+        return {
+            "assets": abs(assets),
+            "liabilities": abs(liabilities),
+            "equity": abs(equity),
+            "liabilities_plus_equity": abs(liabilities) + abs(equity),
+            "balance_gap": abs(abs(assets) - (abs(liabilities) + abs(equity))),
+        }
+
+    def compute_cash_flow(current_rows, prior_rows, pl_current):
+        def _cash_balance(rows):
+            return sum(
+                _to_float(r.balance)
+                for r in rows
+                if r.account_type == "Asset" and (
+                    "cash" in str(getattr(r, "account_name", "")).lower()
+                    or 1000 <= int(_to_float(getattr(r, "account_code", 0))) < 1100
+                )
+            )
+
+        curr_cash = _cash_balance(current_rows)
+        prev_cash = _cash_balance(prior_rows)
+
+        curr_non_cash_assets = sum(
+            _to_float(r.balance)
+            for r in current_rows
+            if r.account_type == "Asset" and "cash" not in str(getattr(r, "account_name", "")).lower()
+        )
+        prev_non_cash_assets = sum(
+            _to_float(r.balance)
+            for r in prior_rows
+            if r.account_type == "Asset" and "cash" not in str(getattr(r, "account_name", "")).lower()
+        )
+
+        curr_liab_equity = sum(
+            _to_float(r.balance)
+            for r in current_rows
+            if r.account_type in ("Liability", "Equity")
+        )
+        prev_liab_equity = sum(
+            _to_float(r.balance)
+            for r in prior_rows
+            if r.account_type in ("Liability", "Equity")
+        )
+
+        operating_cash = _to_float(pl_current.get("ebitda"))
+        investing_cash = -(curr_non_cash_assets - prev_non_cash_assets)
+        financing_cash = curr_liab_equity - prev_liab_equity
+        net_cash_change = curr_cash - prev_cash
+
+        return {
+            "beginning_cash": abs(prev_cash),
+            "ending_cash": abs(curr_cash),
+            "operating_cash": operating_cash,
+            "investing_cash": investing_cash,
+            "financing_cash": financing_cash,
+            "net_cash_change": net_cash_change,
+        }
+
     # Grab the company metadata
     c = db.query(Company).filter(Company.id == company_id).first()
 
@@ -224,5 +309,8 @@ def get_company_financials(company_id: str, period: str = "2026-01", db: Session
         "budget": [{"account_code": b.account_code, "account_name": b.account_name, "budget_amount": b.budget_amount} for b in budget_rows],
         "prior_year": rows_to_dict(prior_rows),
         "pl_summary": compute_pl(tb_rows),
-        "pl_budget": {"revenue": sum(b.budget_amount for b in budget_rows if "Revenue" in b.account_name or b.account_code >= 4000 and b.account_code < 5000)},
+        "pl_prior_year": compute_pl(prior_rows),
+        "pl_budget": infer_budget_pl(budget_rows),
+        "balance_sheet": compute_balance_sheet(tb_rows),
+        "cash_flow": compute_cash_flow(tb_rows, prior_month_rows, compute_pl(tb_rows)),
     }

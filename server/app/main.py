@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import companies, agents, financials, workflow
+from app.routers import companies, agents, financials, workflow, reports
 from app.sockets.events import sio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
@@ -37,6 +37,7 @@ fastapi_app.include_router(companies.router)
 fastapi_app.include_router(agents.router)
 fastapi_app.include_router(financials.router)
 fastapi_app.include_router(workflow.router)
+fastapi_app.include_router(reports.router)
 
 
 @fastapi_app.on_event("startup")
